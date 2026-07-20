@@ -20,6 +20,12 @@ const overlayTitle = document.querySelector<HTMLDivElement>("#overlay-title")!;
 const overlayMsg = document.querySelector<HTMLDivElement>("#overlay-msg")!;
 const overlayBtn = document.querySelector<HTMLButtonElement>("#overlay-btn")!;
 const launchBtn = document.querySelector<HTMLButtonElement>("#launch-btn")!;
+const levelEl = document.querySelector<HTMLSpanElement>("#level")!;
+const missionNameEl = document.querySelector<HTMLDivElement>("#mission-name")!;
+const missionProgressEl = document.querySelector<HTMLDivElement>("#mission-progress")!;
+const missionBanner = document.querySelector<HTMLDivElement>("#mission-banner")!;
+const missionBannerText = document.querySelector<HTMLDivElement>("#mission-banner-text")!;
+let bannerTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ---- clock in the taskbar --------------------------------------------------
 const clockEl = document.querySelector<HTMLDivElement>("#clock")!;
@@ -50,6 +56,9 @@ const CLIPPY_LINES = [
   "Remember: it's not a loss, it's a warm-up round.",
   "You miss 100% of the flips you don't take.",
   "I'd offer to hold the ball for you, but I don't have hands.",
+  "It looks like you're aiming for a ramp shot. Timing is everything!",
+  "Clear that mission ladder and I hear good things happen.",
+  "That upper flipper up top isn't just for show, you know.",
 ];
 let clippyTimer: ReturnType<typeof setTimeout> | null = null;
 let clippyHideTimer: ReturnType<typeof setTimeout> | null = null;
@@ -364,11 +373,68 @@ const rightFlipper = new Flipper(
   "right"
 );
 
+// Third flipper: a short paddle at the dome apex. Shares control with either
+// main flipper key (classic pinball tables often gang an upper flipper onto
+// the same buttons), and lets a well-timed press redirect a ball rolling
+// across the top of the field toward either bumper cluster.
+const centerFlipper = new Flipper(
+  { x: 178, y: 196 },
+  58,
+  Math.PI * 0.82, // resting: pointing down-left, out of the way
+  Math.PI * 0.12, // active: swept right, batting anything at the apex
+  "left"
+);
+
+// ---------------------------------------------------------------------------
+// Ramps — simplified as capture/launch "loop" shots rather than full physical
+// tubes: hitting the mouth while moving upward with enough speed captures the
+// ball and re-emits it near the top of the field, same feel as an orbit/ramp
+// shot on a real table, without needing a separate rendering layer.
+// ---------------------------------------------------------------------------
+interface Ramp {
+  name: string;
+  mouth: Vec;
+  r: number;
+  exit: Vec;
+  exitVel: Vec;
+  color: string;
+  glow: string;
+  hits: number;
+  cooldown: number;
+  flash: number;
+}
+
+const ramps: Ramp[] = [
+  {
+    name: "Recycle Ramp",
+    mouth: { x: 52, y: 475 },
+    r: 17,
+    exit: { x: 108, y: 214 },
+    exitVel: { x: 90, y: 260 },
+    color: "#2f9c2f",
+    glow: "#9be89b",
+    hits: 0,
+    cooldown: 0,
+    flash: 0,
+  },
+  {
+    name: "Update Ramp",
+    mouth: { x: W - 52, y: 475 },
+    r: 17,
+    exit: { x: W - 108, y: 214 },
+    exitVel: { x: -90, y: 260 },
+    color: "#1a5fd6",
+    glow: "#7fb6ff",
+    hits: 0,
+    cooldown: 0,
+    flash: 0,
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Ball
 // ---------------------------------------------------------------------------
 const BALL_R = 9;
-const GRAVITY = 620; // px/s^2
 
 interface BallState {
   pos: Vec;
@@ -383,6 +449,19 @@ const ball: BallState = {
   vel: { x: 0, y: 0 },
   active: false,
 };
+
+// Bonus multiball balls, awarded for clearing the mission ladder. They share
+// all the same physics/collision handling as the main ball but don't cost a
+// life when drained — losing them just ends the multiball bonus.
+let extraBalls: BallState[] = [];
+let multiballActive = false;
+
+function activeBalls(): BallState[] {
+  const list: BallState[] = [];
+  if (ball.active) list.push(ball);
+  list.push(...extraBalls);
+  return list;
+}
 
 let plungerCharge = 0; // 0..1
 let plungerCharging = false;
@@ -400,6 +479,100 @@ let paused = false;
 let comboMultiplier = 1;
 let comboTimer = 0;
 
+// ---------------------------------------------------------------------------
+// Mission ladder — four Windows-XP-themed objectives per level. Clearing all
+// four triggers a multiball bonus and bumps the level, scaling every
+// threshold up and nudging gravity a little harder for the next lap.
+// ---------------------------------------------------------------------------
+let level = 1;
+let missionIndex = 0;
+let bumperHits = 0;
+let targetClears = 0;
+let rampHitsTotal = 0;
+let levelScore = 0; // score earned since the current level started
+
+interface Mission {
+  name: string;
+  target: (lvl: number) => number;
+  progress: () => number;
+}
+
+const MISSIONS: Mission[] = [
+  { name: "Boot Windows", target: (lvl) => 15 + (lvl - 1) * 5, progress: () => bumperHits },
+  { name: "Empty Recycle Bin", target: (lvl) => 3 + (lvl - 1), progress: () => targetClears },
+  { name: "Run Disk Defragmenter", target: (lvl) => 6 + (lvl - 1) * 2, progress: () => rampHitsTotal },
+  { name: "Install Updates", target: (lvl) => 2500 + (lvl - 1) * 1000, progress: () => levelScore },
+];
+
+const GRAVITY_BASE = 620;
+function currentGravity(): number {
+  return Math.min(GRAVITY_BASE + (level - 1) * 18, 760);
+}
+
+function showBanner(text: string, ms = 2200) {
+  missionBanner.classList.add("show");
+  missionBannerText.innerHTML = text;
+  if (bannerTimer) clearTimeout(bannerTimer);
+  bannerTimer = setTimeout(() => missionBanner.classList.remove("show"), ms);
+}
+
+function updateMissionHud() {
+  const m = MISSIONS[missionIndex];
+  levelEl.textContent = String(level);
+  if (!m) {
+    missionNameEl.textContent = "System Restore Ready";
+    missionProgressEl.textContent = "";
+    return;
+  }
+  missionNameEl.textContent = m.name;
+  missionProgressEl.textContent = `${Math.min(m.progress(), m.target(level))} / ${m.target(level)}`;
+}
+
+function spawnMultiball() {
+  multiballActive = true;
+  const spawnOne = (delayMs: number) => {
+    setTimeout(() => {
+      if (!gameRunning) return;
+      extraBalls.push({
+        pos: { ...plungerRestPos },
+        vel: { x: (Math.random() - 0.5) * 120, y: -(700 + Math.random() * 200) },
+        active: true,
+      });
+      sfx.launch();
+    }, delayMs);
+  };
+  spawnOne(150);
+  spawnOne(650);
+  statusEl.textContent = "Multiball!";
+}
+
+function advanceMission() {
+  const m = MISSIONS[missionIndex];
+  if (!m) return;
+  if (m.progress() >= m.target(level)) {
+    missionIndex++;
+    addScore(300);
+    if (missionIndex >= MISSIONS.length) {
+      // Ladder cleared — big bonus, level up, reset counters, go multiball.
+      const bonus = 2000 * level;
+      addScore(bonus);
+      showBanner(`SYSTEM RESTORE POINT CREATED!<br/>+${fmt(bonus)} — Level ${level + 1} · Multiball!`, 2800);
+      sfx.combo();
+      level += 1;
+      missionIndex = 0;
+      bumperHits = 0;
+      targetClears = 0;
+      rampHitsTotal = 0;
+      levelScore = 0;
+      spawnMultiball();
+    } else {
+      showBanner(`Mission complete: ${m.name}!<br/>Next up: ${MISSIONS[missionIndex].name}`);
+      sfx.combo();
+    }
+    updateMissionHud();
+  }
+}
+
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
 }
@@ -408,10 +581,13 @@ function updateHud() {
   scoreEl.textContent = fmt(score);
   highscoreEl.textContent = fmt(highScore);
   ballsEl.textContent = String(Math.max(ballsLeft, 0));
+  updateMissionHud();
 }
 
 function addScore(n: number) {
-  score += Math.round(n * comboMultiplier);
+  const gained = Math.round(n * comboMultiplier * (multiballActive ? 2 : 1));
+  score += gained;
+  levelScore += gained;
   comboMultiplier = Math.min(comboMultiplier + 0.15, 4);
   comboTimer = 2.2;
   if (score > highScore) {
@@ -427,14 +603,31 @@ function resetBallToPlunger() {
   ball.active = false;
 }
 
+function resetTargets() {
+  for (const t of targets) {
+    t.hit = false;
+    t.flash = 0;
+  }
+}
+
 function startNewGame() {
   score = 0;
   ballsLeft = 3;
   comboMultiplier = 1;
+  level = 1;
+  missionIndex = 0;
+  bumperHits = 0;
+  targetClears = 0;
+  rampHitsTotal = 0;
+  levelScore = 0;
+  multiballActive = false;
+  extraBalls = [];
+  resetTargets();
   gameRunning = true;
   paused = false;
   resetBallToPlunger();
   updateHud();
+  updateMissionHud();
   overlay.classList.add("hidden");
   statusEl.textContent = "Ball 1 — pull back and release to launch";
   sfx.start();
@@ -442,6 +635,12 @@ function startNewGame() {
 
 function loseBall() {
   sfx.drain();
+  // Bonus multiball balls don't cost a life — losing the last of them just
+  // ends the bonus round.
+  if (multiballActive && extraBalls.length === 0) {
+    multiballActive = false;
+    statusEl.textContent = "Multiball over";
+  }
   ballsLeft -= 1;
   updateHud();
   if (ballsLeft <= 0) {
@@ -453,8 +652,10 @@ function loseBall() {
     statusEl.textContent = "Game over";
     sfx.gameOver();
   } else {
+    const ballBonus = level * 200;
+    addScore(ballBonus);
     resetBallToPlunger();
-    statusEl.textContent = `Ball ${4 - ballsLeft} — pull back and release to launch`;
+    statusEl.textContent = `Ball ${4 - ballsLeft} bonus +${fmt(ballBonus)} — pull back and release to launch`;
   }
 }
 
@@ -580,99 +781,128 @@ muteBtn.addEventListener("click", () => {
 // meaningful horizontal velocity from the dome curve/bumpers/flippers before
 // it can line back up with the narrow lane mouth, so that case gets deflected
 // back out into play instead of being allowed to drop back into the lane.
-function enforceLaneGate() {
+function enforceLaneGate(b: BallState) {
   const gateY = LANE_TOP + BALL_R + 2;
   if (
-    ball.pos.x > LANE_X + BALL_R &&
-    ball.pos.x < W - WALL_MARGIN - BALL_R &&
-    ball.pos.y > LANE_TOP - 6 &&
-    ball.pos.y < gateY + 18 &&
-    ball.vel.y > 0 &&
-    Math.abs(ball.vel.x) > 25
+    b.pos.x > LANE_X + BALL_R &&
+    b.pos.x < W - WALL_MARGIN - BALL_R &&
+    b.pos.y > LANE_TOP - 6 &&
+    b.pos.y < gateY + 18 &&
+    b.vel.y > 0 &&
+    Math.abs(b.vel.x) > 25
   ) {
-    ball.pos.y = LANE_TOP - 6;
-    ball.vel.y = -Math.abs(ball.vel.y) * 0.5 - 80;
-    ball.vel.x = -Math.abs(ball.vel.x) - 40;
+    b.pos.y = LANE_TOP - 6;
+    b.vel.y = -Math.abs(b.vel.y) * 0.5 - 80;
+    b.vel.x = -Math.abs(b.vel.x) - 40;
   }
 }
 
-function collideWalls() {
+function collideWalls(b: BallState) {
   for (const seg of walls) {
-    const { point } = closestOnSegment(ball.pos, seg.a, seg.b);
-    const diff = sub(ball.pos, point);
+    const { point } = closestOnSegment(b.pos, seg.a, seg.b);
+    const diff = sub(b.pos, point);
     const d = len(diff);
     if (d < BALL_R && d > 0.0001) {
       const n = norm(diff);
       const overlap = BALL_R - d;
-      ball.pos = add(ball.pos, scale(n, overlap));
-      const vn = dot(ball.vel, n);
+      b.pos = add(b.pos, scale(n, overlap));
+      const vn = dot(b.vel, n);
       if (vn < 0) {
-        ball.vel = sub(ball.vel, scale(n, vn * 1.75)); // reflect + slight damping via 1.75 instead of 2
+        b.vel = sub(b.vel, scale(n, vn * 1.75)); // reflect + slight damping via 1.75 instead of 2
       }
     }
   }
 }
 
-function collideBumpers() {
-  for (const b of bumpers) {
-    const diff = sub(ball.pos, b.pos);
+function collideBumpers(b: BallState) {
+  for (const bump of bumpers) {
+    const diff = sub(b.pos, bump.pos);
     const d = len(diff);
-    const minD = BALL_R + b.r;
+    const minD = BALL_R + bump.r;
     if (d < minD && d > 0.0001) {
       const n = norm(diff);
-      ball.pos = add(ball.pos, scale(n, minD - d));
-      const speed = Math.max(len(ball.vel), 260);
-      ball.vel = scale(n, speed * 1.15 + 60);
-      b.hitFlash = 1;
-      addScore(b.points);
-      sfx.bumper(b.points);
-      statusEl.textContent = `+${b.points} combo x${comboMultiplier.toFixed(1)}`;
+      b.pos = add(b.pos, scale(n, minD - d));
+      const speed = Math.max(len(b.vel), 260);
+      b.vel = scale(n, speed * 1.15 + 60);
+      bump.hitFlash = 1;
+      bumperHits += 1;
+      addScore(bump.points);
+      sfx.bumper(bump.points);
+      statusEl.textContent = `+${bump.points} combo x${comboMultiplier.toFixed(1)}`;
+      advanceMission();
     }
   }
 }
 
-function collideTargets() {
+function collideTargets(b: BallState) {
   for (const t of targets) {
-    const closestX = Math.max(t.pos.x - t.w / 2, Math.min(ball.pos.x, t.pos.x + t.w / 2));
-    const closestY = Math.max(t.pos.y - t.h / 2, Math.min(ball.pos.y, t.pos.y + t.h / 2));
-    const dx = ball.pos.x - closestX;
-    const dy = ball.pos.y - closestY;
+    if (t.hit) continue;
+    const closestX = Math.max(t.pos.x - t.w / 2, Math.min(b.pos.x, t.pos.x + t.w / 2));
+    const closestY = Math.max(t.pos.y - t.h / 2, Math.min(b.pos.y, t.pos.y + t.h / 2));
+    const dx = b.pos.x - closestX;
+    const dy = b.pos.y - closestY;
     const d = Math.sqrt(dx * dx + dy * dy);
     if (d < BALL_R) {
       const n = d > 0.0001 ? { x: dx / d, y: dy / d } : { x: 0, y: -1 };
-      ball.pos = add(ball.pos, scale(n, BALL_R - d + 0.5));
-      const vn = dot(ball.vel, n);
-      if (vn < 0) ball.vel = sub(ball.vel, scale(n, vn * 1.6));
+      b.pos = add(b.pos, scale(n, BALL_R - d + 0.5));
+      const vn = dot(b.vel, n);
+      if (vn < 0) b.vel = sub(b.vel, scale(n, vn * 1.6));
       t.flash = 1;
+      t.hit = true;
       addScore(50);
       sfx.target();
-      if (targets.every((tt) => tt.flash > 0.01 || tt.hit)) {
+      if (targets.every((tt) => tt.hit)) {
         addScore(500);
+        targetClears += 1;
         sfx.combo();
         statusEl.textContent = "Bonus! All targets +500";
+        advanceMission();
+        setTimeout(resetTargets, 500);
       }
     }
   }
 }
 
-function collideFlipper(f: Flipper) {
+function collideFlipper(f: Flipper, b: BallState) {
   const tip = f.tip();
-  const { point } = closestOnSegment(ball.pos, f.pivot, tip);
-  const diff = sub(ball.pos, point);
+  const { point } = closestOnSegment(b.pos, f.pivot, tip);
+  const diff = sub(b.pos, point);
   const d = len(diff);
   const minD = BALL_R + f.radius;
   if (d < minD && d > 0.0001) {
     const n = norm(diff);
-    ball.pos = add(ball.pos, scale(n, minD - d));
+    b.pos = add(b.pos, scale(n, minD - d));
     // approximate tangential velocity of the flipper surface at contact point
     const r = sub(point, f.pivot);
     const tangential = { x: -r.y * f.angularVel, y: r.x * f.angularVel };
-    const vn = dot(ball.vel, n);
+    const vn = dot(b.vel, n);
     if (vn < 0) {
-      ball.vel = sub(ball.vel, scale(n, vn * 1.9));
+      b.vel = sub(b.vel, scale(n, vn * 1.9));
     }
     // kick from flipper motion
-    ball.vel = add(ball.vel, scale(tangential, 0.9));
+    b.vel = add(b.vel, scale(tangential, 0.9));
+  }
+}
+
+function collideRamps(b: BallState) {
+  for (const r of ramps) {
+    if (r.cooldown > 0) continue;
+    const diff = sub(b.pos, r.mouth);
+    const d = len(diff);
+    if (d < r.r && b.vel.y < -60) {
+      const speed = len(b.vel);
+      const boost = Math.min(1.3, 0.7 + speed / 900);
+      b.pos = { ...r.exit };
+      b.vel = scale(r.exitVel, boost);
+      r.hits += 1;
+      r.flash = 1;
+      r.cooldown = 0.6;
+      rampHitsTotal += 1;
+      addScore(120);
+      sfx.combo();
+      statusEl.textContent = `${r.name} shot! +120`;
+      advanceMission();
+    }
   }
 }
 
@@ -684,9 +914,15 @@ let lastTime = performance.now();
 function step(dt: number) {
   leftFlipper.update(dt);
   rightFlipper.update(dt);
+  centerFlipper.active = leftFlipper.active || rightFlipper.active;
+  centerFlipper.update(dt);
 
-  for (const b of bumpers) b.hitFlash = Math.max(0, b.hitFlash - dt * 3);
+  for (const bump of bumpers) bump.hitFlash = Math.max(0, bump.hitFlash - dt * 3);
   for (const t of targets) t.flash = Math.max(0, t.flash - dt * 3);
+  for (const r of ramps) {
+    r.flash = Math.max(0, r.flash - dt * 2);
+    r.cooldown = Math.max(0, r.cooldown - dt);
+  }
   comboTimer -= dt;
   if (comboTimer <= 0) comboMultiplier = 1;
 
@@ -696,28 +932,42 @@ function step(dt: number) {
 
   if (!gameRunning || paused) return;
 
-  if (ball.active) {
-    ball.vel.y += GRAVITY * dt;
-    // simple sub-stepping for stability at higher speeds
-    const subSteps = 3;
-    const sdt = dt / subSteps;
-    for (let i = 0; i < subSteps; i++) {
-      ball.pos = add(ball.pos, scale(ball.vel, sdt));
-      enforceLaneGate();
-      collideWalls();
-      collideBumpers();
-      collideTargets();
-      collideFlipper(leftFlipper);
-      collideFlipper(rightFlipper);
-      // speed cap
-      const spd = len(ball.vel);
-      if (spd > 1400) ball.vel = scale(ball.vel, 1400 / spd);
-    }
+  const gravity = currentGravity();
+  const subSteps = 3;
+  const sdt = dt / subSteps;
 
-    if (ball.pos.y > H + 40) {
-      loseBall();
+  for (const b of activeBalls()) {
+    b.vel.y += gravity * dt;
+    for (let i = 0; i < subSteps; i++) {
+      b.pos = add(b.pos, scale(b.vel, sdt));
+      enforceLaneGate(b);
+      collideWalls(b);
+      collideBumpers(b);
+      collideTargets(b);
+      collideRamps(b);
+      collideFlipper(leftFlipper, b);
+      collideFlipper(rightFlipper, b);
+      collideFlipper(centerFlipper, b);
+      // speed cap
+      const spd = len(b.vel);
+      if (spd > 1400) b.vel = scale(b.vel, 1400 / spd);
     }
-  } else {
+  }
+
+  if (ball.active && ball.pos.y > H + 40) {
+    loseBall();
+  }
+  if (extraBalls.length > 0) {
+    const remaining = extraBalls.filter((b) => b.pos.y <= H + 40);
+    if (remaining.length !== extraBalls.length) {
+      extraBalls = remaining;
+      if (extraBalls.length === 0 && multiballActive) {
+        multiballActive = false;
+        statusEl.textContent = "Multiball over";
+      }
+    }
+  }
+  if (!ball.active) {
     // resting in plunger lane, shift down visually while charging
     ball.pos.y = plungerRestPos.y + plungerCharge * 14;
   }
@@ -784,11 +1034,43 @@ function drawBumpers() {
 
 function drawTargets() {
   for (const t of targets) {
+    if (t.hit) {
+      // dropped: draw as a dim recessed slot instead of a lit block
+      ctx.fillStyle = "#3a2020";
+      ctx.fillRect(t.pos.x - t.w / 2, t.pos.y - 3, t.w, 6);
+      continue;
+    }
     ctx.fillStyle = t.flash > 0 ? "#ffef8a" : "#ff6a6a";
     ctx.fillRect(t.pos.x - t.w / 2, t.pos.y - t.h / 2, t.w, t.h);
     ctx.strokeStyle = "#7a1f1f";
     ctx.lineWidth = 1.5;
     ctx.strokeRect(t.pos.x - t.w / 2, t.pos.y - t.h / 2, t.w, t.h);
+  }
+}
+
+function drawRamps() {
+  for (const r of ramps) {
+    const glowAmt = r.flash;
+    ctx.beginPath();
+    ctx.arc(r.mouth.x, r.mouth.y, r.r + glowAmt * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = 4;
+    ctx.shadowColor = r.glow;
+    ctx.shadowBlur = 6 + glowAmt * 18;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // directional chevron hinting "shoot upward here"
+    ctx.fillStyle = r.glow;
+    ctx.beginPath();
+    ctx.moveTo(r.mouth.x, r.mouth.y - 6);
+    ctx.lineTo(r.mouth.x - 6, r.mouth.y + 4);
+    ctx.lineTo(r.mouth.x + 6, r.mouth.y + 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = "bold 9px Tahoma, sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.fillText(String(r.hits), r.mouth.x, r.mouth.y + r.r + 12);
   }
 }
 
@@ -814,22 +1096,19 @@ function drawPlunger() {
   ctx.fillRect(plungerRestPos.x - 8, H - 24, 16, 6);
 }
 
-function drawBall() {
-  if (!ball.active && !gameRunning) return;
-  const grad = ctx.createRadialGradient(
-    ball.pos.x - 3,
-    ball.pos.y - 3,
-    1,
-    ball.pos.x,
-    ball.pos.y,
-    BALL_R
-  );
+function drawOneBall(b: BallState) {
+  const grad = ctx.createRadialGradient(b.pos.x - 3, b.pos.y - 3, 1, b.pos.x, b.pos.y, BALL_R);
   grad.addColorStop(0, "#ffffff");
   grad.addColorStop(1, "#9aa5b1");
   ctx.beginPath();
-  ctx.arc(ball.pos.x, ball.pos.y, BALL_R, 0, Math.PI * 2);
+  ctx.arc(b.pos.x, b.pos.y, BALL_R, 0, Math.PI * 2);
   ctx.fillStyle = grad;
   ctx.fill();
+}
+
+function drawBall() {
+  if (ball.active || gameRunning) drawOneBall(ball);
+  for (const b of extraBalls) drawOneBall(b);
 }
 
 function drawComboBadge() {
@@ -846,10 +1125,12 @@ function drawComboBadge() {
 function render() {
   drawBackground();
   drawWalls();
+  drawRamps();
   drawTargets();
   drawBumpers();
   drawFlipper(leftFlipper);
   drawFlipper(rightFlipper);
+  drawFlipper(centerFlipper);
   drawPlunger();
   drawBall();
   drawComboBadge();
