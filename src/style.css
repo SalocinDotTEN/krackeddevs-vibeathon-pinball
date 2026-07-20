@@ -132,6 +132,12 @@ body {
   gap: 8px;
 }
 
+#board-wrap {
+  position: relative;
+  display: flex;
+  max-height: 72vh;
+}
+
 #board {
   background: #0a0a12;
   border-radius: 4px;
@@ -141,6 +147,46 @@ body {
   height: auto;
   aspect-ratio: 440 / 720;
   touch-action: none;
+}
+
+#mission-banner {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  transform: translate(-50%, -50%) scale(0.85);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 4;
+  width: 88%;
+  text-align: center;
+}
+
+#mission-banner.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+#mission-banner-text {
+  display: inline-block;
+  background: linear-gradient(180deg, #ffe8a8, #f7c94a);
+  border: 2px solid #8a6d00;
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: #4a3400;
+  font-weight: bold;
+  font-size: 15px;
+  line-height: 1.3;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+
+.panel-label-accent {
+  color: #d8730a;
+}
+
+.mission-name {
+  font-weight: bold;
+  color: #1a1a1a;
 }
 
 #side-panel {
@@ -412,6 +458,10 @@ body {
   .panel-box {
     flex: 1;
     min-width: 90px;
+  }
+  #board-wrap {
+    max-height: 55vh;
+    width: 100%;
   }
   #board {
     max-height: 55vh;
