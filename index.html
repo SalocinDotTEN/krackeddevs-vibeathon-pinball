@@ -23,7 +23,10 @@
           <span>Game</span><span>Options</span><span>Help</span>
         </div>
         <div id="game-shell">
-          <canvas id="board" width="440" height="720"></canvas>
+          <div id="board-wrap">
+            <canvas id="board" width="440" height="720"></canvas>
+            <div id="mission-banner"><div id="mission-banner-text"></div></div>
+          </div>
           <div id="side-panel">
             <div class="panel-box">
               <div class="panel-label">SCORE</div>
@@ -36,6 +39,11 @@
             <div class="panel-box">
               <div class="panel-label">BALLS LEFT</div>
               <div id="balls" class="panel-value">3</div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-label">LEVEL <span id="level" class="panel-label-accent">1</span></div>
+              <div id="mission-name" class="panel-text mission-name">Boot Windows</div>
+              <div id="mission-progress" class="panel-text">0 / 15</div>
             </div>
             <div class="panel-box instructions">
               <div class="panel-label">CONTROLS</div>
