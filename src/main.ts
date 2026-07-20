@@ -373,15 +373,15 @@ const rightFlipper = new Flipper(
   "right"
 );
 
-// Third flipper: a short paddle at the dome apex. Shares control with either
-// main flipper key (classic pinball tables often gang an upper flipper onto
-// the same buttons), and lets a well-timed press redirect a ball rolling
-// across the top of the field toward either bumper cluster.
+// Third flipper: a shorter upper-left flipper, angled the same way as the
+// main left flipper (rests pointing down-right, flips up-right). Positioned
+// roughly halfway down the field so it can bat a ball coming out of the
+// bumper cluster back into play, and shares control with either flipper key.
 const centerFlipper = new Flipper(
-  { x: 178, y: 196 },
-  58,
-  Math.PI * 0.82, // resting: pointing down-left, out of the way
-  Math.PI * 0.12, // active: swept right, batting anything at the apex
+  { x: 70, y: 360 },
+  50,
+  Math.PI * 0.28, // resting: pointing down-right
+  -Math.PI * 0.28, // active: pointing up-right
   "left"
 );
 
