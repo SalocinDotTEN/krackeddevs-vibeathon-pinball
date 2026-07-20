@@ -35,6 +35,45 @@ function tickClock() {
 tickClock();
 setInterval(tickClock, 1000 * 15);
 
+// ---- Clippy pep-talk assistant --------------------------------------------
+const clippyBubble = document.querySelector<HTMLDivElement>("#clippy-bubble")!;
+const CLIPPY_LINES = [
+  "It looks like you're playing pinball. You've got this!",
+  "Nice flip! Keep that combo going.",
+  "Tip: tap the lane early to charge the plunger just right.",
+  "Every ball drop is a fresh chance at a high score.",
+  "You're doing great — don't forget to breathe.",
+  "That bumper didn't stand a chance!",
+  "Believe in yourself. The ball certainly believes in gravity.",
+  "Pro tip: the flippers work best when you actually use them.",
+  "Looking sharp today! Ready for a new high score?",
+  "Remember: it's not a loss, it's a warm-up round.",
+  "You miss 100% of the flips you don't take.",
+  "I'd offer to hold the ball for you, but I don't have hands.",
+];
+let clippyTimer: ReturnType<typeof setTimeout> | null = null;
+let clippyHideTimer: ReturnType<typeof setTimeout> | null = null;
+
+function showClippyLine() {
+  const line = CLIPPY_LINES[Math.floor(Math.random() * CLIPPY_LINES.length)];
+  clippyBubble.textContent = line;
+  clippyBubble.classList.add("visible");
+  if (clippyHideTimer) clearTimeout(clippyHideTimer);
+  clippyHideTimer = setTimeout(() => {
+    clippyBubble.classList.remove("visible");
+  }, 4200);
+}
+
+function scheduleClippy() {
+  if (clippyTimer) clearTimeout(clippyTimer);
+  const delay = 6000 + Math.random() * 9000;
+  clippyTimer = setTimeout(() => {
+    if (gameRunning && !paused) showClippyLine();
+    scheduleClippy();
+  }, delay);
+}
+scheduleClippy();
+
 // ---------------------------------------------------------------------------
 // Sound effects — synthesized via Web Audio API, no external asset files.
 // A single shared AudioContext is created lazily on first user interaction
