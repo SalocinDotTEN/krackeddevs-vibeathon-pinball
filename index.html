@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Windows XP Pinball</title>
+  </head>
+  <body>
+    <div id="desktop">
+      <div id="xp-window">
+        <div class="titlebar">
+          <div class="title-left">
+            <img class="title-icon" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTQiIGZpbGw9IiNmZmQ3MDAiIHN0cm9rZT0iI2I4ODYwMCIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+" alt="" />
+            <span>Windows XP Pinball</span>
+          </div>
+          <div class="title-buttons">
+            <button class="tbtn min" title="Minimize">_</button>
+            <button class="tbtn max" title="Maximize">&#9633;</button>
+            <button class="tbtn close" title="Close">&#10005;</button>
+          </div>
+        </div>
+        <div class="menubar">
+          <span>Game</span><span>Options</span><span>Help</span>
+        </div>
+        <div id="game-shell">
+          <canvas id="board" width="440" height="720"></canvas>
+          <div id="side-panel">
+            <div class="panel-box">
+              <div class="panel-label">SCORE</div>
+              <div id="score" class="panel-value">0</div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-label">HIGH SCORE</div>
+              <div id="highscore" class="panel-value">0</div>
+            </div>
+            <div class="panel-box">
+              <div class="panel-label">BALLS LEFT</div>
+              <div id="balls" class="panel-value">3</div>
+            </div>
+            <div class="panel-box instructions">
+              <div class="panel-label">CONTROLS</div>
+              <div class="panel-text">
+                &larr; / Z : Left Flipper<br/>
+                &rarr; / M : Right Flipper<br/>
+                Hold SPACE : Plunger<br/>
+                P : Pause
+              </div>
+            </div>
+            <button id="launch-btn" class="xp-btn">New Game</button>
+          </div>
+        </div>
+        <div id="overlay">
+          <div id="overlay-box">
+            <div id="overlay-title">Windows XP Pinball</div>
+            <div id="overlay-msg">Click Start to boot up a new game.</div>
+            <button id="overlay-btn" class="xp-btn big">Start</button>
+          </div>
+        </div>
+        <div class="statusbar">
+          <span id="status-text">Ready</span>
+        </div>
+      </div>
+    </div>
+    <div id="taskbar">
+      <button id="start-btn"><span class="start-flag"></span>start</button>
+      <div class="taskbar-app">
+        <img class="title-icon small" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTQiIGZpbGw9IiNmZmQ3MDAiIHN0cm9rZT0iI2I4ODYwMCIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+" alt="" />
+        Windows XP Pinball
+      </div>
+      <div id="tray">
+        <button id="mute-btn" title="Mute sound">&#128266;</button>
+      </div>
+      <div id="clock"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
