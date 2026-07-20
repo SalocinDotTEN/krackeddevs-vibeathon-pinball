@@ -325,6 +325,81 @@ body {
   opacity: 0.5;
 }
 
+/* ---- Clippy the pinball pep-talk assistant ------------------------------ */
+
+#clippy {
+  position: fixed;
+  right: 14px;
+  bottom: 44px;
+  width: 64px;
+  height: 84px;
+  z-index: 20;
+  pointer-events: none;
+  animation: clippy-bob 2.6s ease-in-out infinite;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
+}
+
+#clippy-figure {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@keyframes clippy-bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-7px) rotate(2deg); }
+}
+
+#clippy-bubble {
+  position: absolute;
+  right: 8px;
+  bottom: 100%;
+  margin-bottom: 10px;
+  min-width: 120px;
+  max-width: 190px;
+  width: max-content;
+  background: #ffffe1;
+  color: #222;
+  border: 1px solid #8a8a5c;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+  opacity: 0;
+  transform: translateY(6px) scale(0.92);
+  transform-origin: bottom right;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+
+#clippy-bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 16px;
+  border: 7px solid transparent;
+  border-top-color: #ffffe1;
+  filter: drop-shadow(0 1px 0 #8a8a5c);
+}
+
+#clippy-bubble.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+@media (max-width: 640px) {
+  #clippy {
+    width: 48px;
+    height: 63px;
+    right: 8px;
+    bottom: 40px;
+  }
+  #clippy-bubble {
+    max-width: 42vw;
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 640px) {
   #game-shell {
     flex-direction: column;
