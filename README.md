@@ -9,10 +9,18 @@ Live: https://xp-pinball-s44k0.surething.host
 ## Features
 
 - Canvas-based gravity pinball physics
-- Two flippers (arrow keys / Z, M) and a chargeable plunger launcher (hold Space)
-- Pop bumpers, drop targets, slingshots, combo scoring, persistent high score
+- Three flippers — two main flippers (arrow keys / Z, M) plus a shared upper
+  "apex" flipper — and a chargeable plunger launcher (hold Space)
+- Two loop/ramp shots (Recycle Ramp, Update Ramp) that capture the ball on an
+  upward hit and re-launch it near the top of the field
+- Pop bumpers, a persistent drop-target bank, slingshots, combo scoring
+- A 4-mission ladder per level (Boot Windows → Empty Recycle Bin → Run Disk
+  Defragmenter → Install Updates); clearing it awards a big bonus, levels up,
+  and triggers a 2-ball multiball
+- Per-ball drain bonus, persistent high score
 - Synthesized sound effects (Web Audio) with a mute toggle
 - Touch controls for mobile
+- Floating Clippy assistant with random pep-talk speech bubbles
 
 ## Development
 
