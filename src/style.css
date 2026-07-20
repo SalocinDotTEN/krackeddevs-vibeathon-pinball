@@ -324,8 +324,8 @@ body {
 }
 
 .taskbar-app {
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
+  width: 150px;
   height: 26px;
   display: flex;
   align-items: center;
@@ -338,6 +338,11 @@ body {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+#taskbar-spacer {
+  flex: 1;
+  min-width: 0;
 }
 
 #clock {
