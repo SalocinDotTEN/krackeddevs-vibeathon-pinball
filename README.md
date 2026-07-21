@@ -6,6 +6,8 @@ background in the spirit of the default Bliss wallpaper.
 
 Live: https://xp-pinball-s44k0.surething.host
 
+Built with [SureThing](https://surething.io/invitation?ref=QAN6KQDP&utm_source=invitation&utm_medium=copy_link&utm_campaign=copy_link) — sign up and we both get bonus credits.
+
 ## Summary
 
 A full-featured, Space Cadet-inspired pinball table skinned entirely in
